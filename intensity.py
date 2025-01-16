@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from pprint import pprint
 
-
-# Function to process weather data
 def process_weather_data(response):
     hourly_data = response['hourly']
     data = pd.DataFrame({
@@ -22,15 +20,13 @@ def process_weather_data(response):
     })
     data['date'] = data['time'].dt.date
     daily_averages = data.groupby('date').mean()
-    result = daily_averages[['temperature', 'humidity', 'wind_speed', 'cloud_cover']].to_numpy()
-    return result
+    return daily_averages[['temperature', 'humidity', 'wind_speed', 'cloud_cover']].to_numpy()
 
-
-# Fetch weather data
 url = "https://api.open-meteo.com/v1/forecast"
 params = {
-    "latitude": 50.5,
-    "longitude": 30.4375,
+    #latitude and longitude are examples of passed values
+    "latitude": 50.4504,
+    "longitude": 30.5245,
     "hourly": "temperature_2m,relative_humidity_2m,rain,cloud_cover,wind_speed_10m",
     "timezone": "Africa/Cairo",
     "forecast_days": 16
@@ -48,23 +44,16 @@ except Exception as e:
     print(f"An error occurred: {e}")
     exit()
 
-# Load and process training data
 file_path = "pattern.xlsx"
 data = pd.read_excel(file_path)
-print(f"Dataset contains {len(data)} rows and {data.shape[1]} columns.")
-
 sample_size = min(300, len(data))
 data_subset = data.sample(n=sample_size, random_state=42).reset_index(drop=True)
-X = data_subset[["Temperature_Deviation_C", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"]]
-y = data_subset["Corrected_Intensity_Delta"]
-
+X = data_subset[["Temperature_Delta", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"]]
+y = data_subset["Intensity_Delta"]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Train the Random Forest model
 rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
 rf_model.fit(X_train, y_train)
 
-# Evaluate the model
 y_pred = rf_model.predict(X_test).round().astype(int)
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
@@ -82,120 +71,44 @@ plt.title("Actual vs Predicted Intensity Delta")
 plt.legend()
 plt.show()
 
-# Predict for the 16-day forecast
-test_data = pd.DataFrame(weather_data, columns=["Temperature_Deviation_C", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"])
+test_data = pd.DataFrame(weather_data, columns=["Temperature_Delta", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"])
 test_predictions = rf_model.predict(test_data).round().astype(int)
 test_data["Predicted Intensity Delta"] = test_predictions
-
-# Display predictions for 16 days
-print("Predicted Intensity Delta for the 16-day forecast:")
-print(test_data)
-
-# Extract delta intensities as an array
 delta_intensities = test_data["Predicted Intensity Delta"].tolist()
 
-
-# Function to generate a map of dates to delta intensities
 def generate_intensity_map(delta_intensities):
-    today = datetime.today()  # Get today's date
-    intensity_map = {}
+    today = datetime.today()
+    return { (today + timedelta(days=i)).strftime("%Y-%m-%d"): delta for i, delta in enumerate(delta_intensities) }
 
-    # Generate the mapping
-    for i, delta in enumerate(delta_intensities):
-        date = today + timedelta(days=i)  # Calculate the date for each delta
-        intensity_map[date.strftime("%Y-%m-%d")] = delta  # Add to map with formatted date as key
-
-    return intensity_map
-
-
-# Generate the delta intensity map
-delta_intensity_map = generate_intensity_map(delta_intensities)
-
-
-# Function to generate blooming graph intensities
 def generate_blooming_graph(start, end):
-    # Parse the start and end dates
-    start_date = datetime.strptime(start, "%d/%m/%Y")
-    end_date = datetime.strptime(end, "%d/%m/%Y")
-
-    # Generate a range of dates from start to end
+    start_date = datetime.strptime(start, "%d/%m/%Y")  # example of passed value
+    end_date = datetime.strptime(end, "%d/%m/%Y")  # example of passed value
     date_range = pd.date_range(start=start_date, end=end_date)
-
-    # Calculate the midpoint of the season (peak)
     midpoint = start_date + (end_date - start_date) / 2
-
-    # Create x-values as days from the start date
     x_days = np.array([(date - start_date).days for date in date_range])
+    y_values = 5 * np.exp(-((x_days - (midpoint - start_date).days) ** 2) / (2 * ((end_date - start_date).days / 6) ** 2))
+    return np.round(y_values).tolist()
 
-    # Create y-values using a normal distribution
-    peak_intensity = 5
-    std_dev = (end_date - start_date).days / 6
-    y_values = peak_intensity * np.exp(-((x_days - (midpoint - start_date).days) ** 2) / (2 * std_dev ** 2))
-
-    # Return the rounded intensities for each day
-    intensity_values = np.round(y_values).tolist()
-    return intensity_values
-
-
-# Function to generate dates dictionary from blooming graph
 def generate_dates_dict(start, intensities):
-    # Parse the start date
     start_date = datetime.strptime(start, "%d/%m/%Y")
-
-    # Generate the dictionary
-    dates_dict = {}
-    for i, intensity in enumerate(intensities):
-        date = start_date + timedelta(days=i)  # Calculate the date for each intensity
-        dates_dict[date.strftime("%Y-%m-%d")] = intensity  # Add to the dictionary with formatted date as key
-
-    return dates_dict
-
+    return { (start_date + timedelta(days=i)).strftime("%Y-%m-%d"): intensity for i, intensity in enumerate(intensities) }
 
 def merge_intensities(delta_intensity_map, blooming_intensity_map):
-    """
-    Merges the delta intensities into the blooming intensities where dates match.
+    updated_map = blooming_intensity_map.copy()
+    for date, delta in delta_intensity_map.items():
+        if date in updated_map:
+            updated_map[date] = max(0, min(5, updated_map[date] + delta))
+    return list(updated_map.values()), updated_map
 
-    Args:
-        delta_intensity_map (dict): Dates mapped to delta intensities.
-        blooming_intensity_map (dict): Dates mapped to base blooming intensities.
-
-    Returns:
-        tuple: Updated intensities array and dictionary.
-    """
-    # Initialize the updated dictionary
-    updated_intensity_map = blooming_intensity_map.copy()
-
-    # Update the blooming intensities with the delta intensities
-    for date, delta_intensity in delta_intensity_map.items():
-        if date in updated_intensity_map:
-            updated_value = updated_intensity_map[date] + delta_intensity
-            # Clamp the value between 0 and 5
-            updated_intensity_map[date] = max(0, min(5, updated_value))
-
-    # Convert the dictionary values to an array
-    updated_intensities_array = list(updated_intensity_map.values())
-
-    return updated_intensities_array, updated_intensity_map
-
-
-# Example usage for blooming graph
-start = "10/01/2025"
-end = "25/02/2025"
+#start and end are examples of passed values 
+start = "24/07/2025"
+end = "22/10/2025"
 blooming_intensities = generate_blooming_graph(start, end)
-blooming_dates_dict = generate_dates_dict(start, blooming_intensities)
-
-# Print the results
-print("\nDate-to-Delta Intensity Map:")
-pprint(delta_intensity_map)
-
-print("\nDates to Blooming Intensities Dictionary:")
-pprint(blooming_dates_dict)
-
+blooming_dates_dict = generate_dates_dict(start, blooming_intensities) 
+delta_intensity_map = generate_intensity_map(delta_intensities)
 updated_array, updated_dict = merge_intensities(delta_intensity_map, blooming_dates_dict)
 
 print("\nUpdated Intensities Dictionary:")
 pprint(updated_dict)
-
-# Print the results
-print("Updated Intensities Array:")
+print("\nUpdated Intensities Array:")
 print(updated_array)
