@@ -135,6 +135,11 @@ def predict():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/ping", methods=["GET"])
+def ping():
+    return jsonify({"status": "awake"}), 200
+
+
 # Run Flask app
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
