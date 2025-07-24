@@ -6,7 +6,16 @@ This repository contains the backend prediction service for the **Allergy Tracke
 
 ## 🧠 Model Overview
 
-The prediction system uses a **Random Forest Regressor** trained on weather deviation data to estimate how real-time environmental factors affect pollen intensity. It then adjusts a baseline blooming curve with these deviations to provide refined forecasts.
+The prediction system uses a **Random Forest Regressor** trained on weather deviation data to estimate how real-time environmental factors affect pollen intensity. 
+
+It starts by generating a **baseline intensity curve** using a **normal distribution**, assuming that the plant’s pollen production peaks mid-season and decreases toward the start and end of the blooming period. This curve models natural blooming patterns in ideal weather conditions.
+
+The model then adjusts this baseline using real-time weather data (temperature deviation, humidity, wind speed, and cloud cover) to provide a refined, realistic daily forecast.
+
+![Bloom curve and adjusted intensity](readme_images/intensity_prediction_ss.png)
+
+*Gray area – final adjusted intensity | Green dashed – baseline normal distribution*
+
 
 ### 🔍 Input Features
 
