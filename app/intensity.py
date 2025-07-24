@@ -1,16 +1,18 @@
+import os
 import pandas as pd
-import requests
 import numpy as np
+from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from datetime import datetime, timedelta
-import os
+from app.weather import get_weather_data  # Adjust path as needed if your structure differs
 
-# === Load & train model ===
+# === Load & Train Model ===
 file_path = os.path.join(os.path.dirname(__file__), "pattern.xlsx")
 data = pd.read_excel(file_path)
+
 sample_size = min(300, len(data))
 data_subset = data.sample(n=sample_size, random_state=42).reset_index(drop=True)
+
 X = data_subset[["Temperature_Deviation_C", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"]]
 y = data_subset["Corrected_Intensity_Delta"]
 
@@ -18,36 +20,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
 rf_model.fit(X_train, y_train)
 
-# weather utilities
-def get_weather_data(lat, lon, days, timezone="Europe/Kiev"):
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "hourly": "temperature_2m,relative_humidity_2m,rain,cloud_cover,wind_speed_10m",
-        "timezone": timezone,
-        "forecast_days": days
-    }
-    res = requests.get(url, params=params)
-    res.raise_for_status()
-    response = res.json()
-
-    hourly_data = response['hourly']
-    df = pd.DataFrame({
-        'time': pd.to_datetime(hourly_data['time']),
-        'temperature': hourly_data['temperature_2m'],
-        'humidity': hourly_data['relative_humidity_2m'],
-        'rain': hourly_data['rain'],
-        'cloud_cover': hourly_data['cloud_cover'],
-        'wind_speed': hourly_data['wind_speed_10m']
-    })
-
-    df['date'] = df['time'].dt.date
-    daily_averages = df.groupby('date').mean()
-    result = daily_averages[["temperature", "humidity", "wind_speed", "cloud_cover"]].to_numpy()
-    return result
-
-# bloom logic
+# === Helpers ===
 def generate_blooming_graph(start, end):
     start_date = datetime.strptime(start, "%d/%m/%Y")
     end_date = datetime.strptime(end, "%d/%m/%Y")
@@ -80,10 +53,12 @@ def merge_intensities(delta_map, bloom_map):
             updated[date] = max(0, min(5, updated[date] + delta))
     return list(updated.values()), updated
 
-# core function
+# === Main Prediction Function ===
 def generate_updated_intensity_forecast(start, end, lat, lon, timezone):
-    weather = get_weather_data(lat, lon, 16, timezone)
-    test_df = pd.DataFrame(weather, columns=["Temperature_Deviation_C", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"])
+    weather_results = get_weather_data(lat, lon, forecast_days=16)
+    weather_array = weather_results[1]
+
+    test_df = pd.DataFrame(weather_array, columns=["Temperature_Deviation_C", "Humidity_Percent", "Wind_Speed_kmh", "Cloud_Cover_Percent"])
     predictions = rf_model.predict(test_df).round().astype(int).tolist()
 
     delta_map = generate_intensity_map(predictions)

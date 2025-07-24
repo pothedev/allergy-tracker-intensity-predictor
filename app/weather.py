@@ -17,7 +17,7 @@ def get_weather_data(latitude=50.0, longitude=30.0, forecast_days=16, start="202
         "latitude": latitude,
         "longitude": longitude,
         "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover",
-        "timezone": "Europe/Kiev",
+        "timezone": "Africa/Cairo",
         "forecast_days": forecast_days
     }
 
@@ -133,34 +133,3 @@ def get_weather_data(latitude=50.0, longitude=30.0, forecast_days=16, start="202
         },
         forecast_weather_array
     ]
-
-
-# Example Usage:
-if __name__ == "__main__":
-    weather_results = get_weather_data()
-
-    # First element: Processed weather dictionary
-    weather_dict = weather_results[0]
-    print("\nDaily Temperature Forecast:")
-    pprint(weather_dict["daily_temperature_dict"])
-
-    print("\nHistorical Average Temperatures:")
-    pprint(weather_dict["averaged_weather_data"])
-
-    print("\nTemperature Deviation (Forecast - Historical):")
-    pprint(weather_dict["temperature_deviation"])
-
-    # Second element: Forecast weather array
-    weather_array = weather_results[1]
-    print("\nForecast Weather Array (Delta Temp, Humidity, Wind Speed, Cloud Cover):")
-    print(weather_array)
-
-
-start = "15/02/2025"
-end = "23/02/2025"
-latitude = 50.0
-longitude = 30.0
-forecast_days = 16
-
-data= get_weather_data(latitude, longitude, forecast_days)
-print(data[1])

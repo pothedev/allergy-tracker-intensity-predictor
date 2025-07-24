@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from intensity import (
+from app.intensity import (
     generate_updated_intensity_forecast,
     get_weather_data
 )
