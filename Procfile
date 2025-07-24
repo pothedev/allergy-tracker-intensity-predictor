@@ -1,1 +1,1 @@
-web: gunicorn server_intensity:app
+web: gunicorn app.main:app
